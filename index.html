@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>모으다 원주 - 원시 축제 & 행사 정보 통합 모음</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        wonju: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        },
+                        accent: {
+                            500: '#f97316',
+                            600: '#ea580c',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Pretendard', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Leaflet CSS & JS for Interactive Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Custom scrollbar & map fixes */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .leaflet-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 1rem;
+            z-index: 10;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
+
+    <!-- TOP HEADER -->
+    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="resetFilters()">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-wonju-600 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-wonju-600/20">
+                    <i data-lucide="sparkles" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-1.5">
+                        모으다 <span class="text-wonju-600">원주</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 font-medium">원주시 축제·팝업 사전예약 & 길잡이</p>
+                </div>
+            </div>
+
+            <!-- API Configuration Button & Search -->
+            <div class="flex items-center gap-2">
+                <button onclick="toggleApiKeyModal()" class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1.5">
+                    <i data-lucide="key" class="w-3.5 h-3.5 text-amber-500"></i>
+                    <span>Tour API 설정</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+
+        <!-- 1단계: D-DAY HIGHLIGHT BANNER (사전예약 마감 임박) -->
+        <section>
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <div class="p-1.5 bg-rose-100 text-rose-600 rounded-lg">
+                        <i data-lucide="alarm-clock" class="w-5 h-5"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-900">사전예약 D-Day 마감 임박!</h2>
+                </div>
+                <span class="text-xs text-slate-500 font-medium">놓치면 후회하는 원주 인기 행사</span>
+            </div>
+
+            <!-- D-Day Card Carousel / Grid -->
+            <div id="ddayContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Javascript standard render target -->
+            </div>
+        </section>
+
+        <!-- 2단계: INFORMATION FILTERING & MAP / LIST SECTION -->
+        <section class="space-y-4">
+            
+            <!-- Controls Bar: Search & Category Filters -->
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
+                
+                <!-- Category Buttons -->
+                <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0" id="categoryContainer">
+                    <button onclick="setCategory('ALL')" class="cat-btn active border px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all bg-wonju-600 text-white border-wonju-600 shadow-sm">
+                        전체 보기
+                    </button>
+                    <button onclick="setCategory('FESTIVAL')" class="cat-btn border px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all bg-white text-slate-600 border-slate-200 hover:bg-slate-50">
+                        🎉 축제/문화
+                    </button>
+                    <button onclick="setCategory('POPUP')" class="cat-btn border px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all bg-white text-slate-600 border-slate-200 hover:bg-slate-50">
+                        🛍️ 팝업/플리마켓
+                    </button>
+                    <button onclick="setCategory('EXHIBITION')" class="cat-btn border px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all bg-white text-slate-600 border-slate-200 hover:bg-slate-50">
+                        🎨 전시/공연
+                    </button>
+                </div>
+
+                <!-- View Switcher (List vs Map toggle for mobile) -->
+                <div class="flex items-center gap-2 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
+                    <div class="relative flex-1 md:w-64">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="searchInput" oninput="handleSearch()" placeholder="행사명, 장소 검색..." class="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-wonju-500/20 focus:border-wonju-500">
+                    </div>
+                    <button onclick="toggleMapView()" id="mapToggleBtn" class="px-3.5 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium flex items-center gap-1.5 hover:bg-slate-800 transition-colors">
+                        <i data-lucide="map" class="w-4 h-4"></i>
+                        <span id="mapToggleText" class="hidden sm:inline">지도 펼치기</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Area: Split View (Map + Cards) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                <!-- Left: Event Cards Grid (7 Cols on LG) -->
+                <div class="lg:col-span-7 space-y-4">
+                    <div class="flex justify-between items-center px-1">
+                        <span class="text-sm font-semibold text-slate-600">
+                            총 <span id="eventCount" class="text-wonju-600 font-bold">0</span>개의 진행/예정 행사
+                        </span>
+                        <select id="sortSelect" onchange="handleSort()" class="text-xs bg-transparent border-0 font-medium text-slate-500 focus:ring-0 cursor-pointer">
+                            <option value="dday">사전예약 마감순</option>
+                            <option value="start">행사 시작일순</option>
+                            <option value="name">가나다순</option>
+                        </select>
+                    </div>
+
+                    <!-- Event Grid -->
+                    <div id="eventListGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Javascript Cards Inject Target -->
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="emptyState" class="hidden bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
+                        <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
+                            <i data-lucide="calendar-x" class="w-6 h-6"></i>
+                        </div>
+                        <h3 class="font-bold text-slate-700">해당 조건의 행사가 없습니다</h3>
+                        <p class="text-xs text-slate-400">검색어를 바꾸거나 필터를 초기화해보세요.</p>
+                        <button onclick="resetFilters()" class="px-4 py-2 bg-wonju-50 text-wonju-700 font-semibold text-xs rounded-xl hover:bg-wonju-100">필터 초기화</button>
+                    </div>
+                </div>
+
+                <!-- Right: Map View (5 Cols on LG - Sticky) -->
+                <div id="mapWrapper" class="lg:col-span-5 hidden lg:block sticky top-20 h-[620px] rounded-2xl border border-slate-200 overflow-hidden shadow-sm bg-white">
+                    <div class="p-3 bg-white border-b border-slate-100 flex items-center justify-between z-20 relative">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="map-pin" class="w-4 h-4 text-wonju-600"></i>
+                            <span class="text-xs font-bold text-slate-700">원주시 행사지도</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400">핀 클릭 시 정보 확인</span>
+                    </div>
+                    <div id="map" class="w-full h-[calc(100%-45px)]"></div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- 3단계: 상세 정보 모달 (교통 & 주차 팁 탭 제공) -->
+    <div id="detailModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col transform transition-all">
+            
+            <!-- Modal Header / Image Banner -->
+            <div class="relative h-48 sm:h-64 bg-slate-800 overflow-hidden shrink-0">
+                <img id="modalImage" src="" alt="" class="w-full h-full object-cover opacity-90">
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
+                
+                <!-- Close Button -->
+                <button onclick="closeModal()" class="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-900/50 text-white flex items-center justify-center hover:bg-slate-900/80 transition-colors backdrop-blur-md">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+
+                <!-- Header Info Overlay -->
+                <div class="absolute bottom-4 left-4 right-4 space-y-1.5 text-white">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span id="modalCategory" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-wonju-500 text-white"></span>
+                        <span id="modalDDayBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500 text-white"></span>
+                    </div>
+                    <h2 id="modalTitle" class="text-xl sm:text-2xl font-bold tracking-tight"></h2>
+                    <p id="modalVenue" class="text-xs sm:text-sm text-slate-300 flex items-center gap-1">
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-wonju-400"></i>
+                        <span></span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Tabs Header -->
+            <div class="border-b border-slate-200 bg-slate-50 flex px-6 gap-6 text-sm font-semibold text-slate-500 shrink-0">
+                <button onclick="switchTab('info')" id="tabBtn-info" class="py-3 border-b-2 border-wonju-600 text-wonju-600 flex items-center gap-1.5">
+                    <i data-lucide="info" class="w-4 h-4"></i> 개요 및 예약
+                </button>
+                <button onclick="switchTab('transit')" id="tabBtn-transit" class="py-3 border-b-2 border-transparent hover:text-slate-800 flex items-center gap-1.5">
+                    <i data-lucide="bus" class="w-4 h-4"></i> 대중교통 탭
+                </button>
+                <button onclick="switchTab('parking')" id="tabBtn-parking" class="py-3 border-b-2 border-transparent hover:text-slate-800 flex items-center gap-1.5">
+                    <i data-lucide="car" class="w-4 h-4"></i> 주차 팁 탭
+                </button>
+            </div>
+
+            <!-- Tab Content Container (Scrollable) -->
+            <div class="p-6 overflow-y-auto space-y-6 flex-1 text-slate-700 text-sm">
+                
+                <!-- TAB 1: 개요 및 사전예약 -->
+                <div id="tabContent-info" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div>
+                            <span class="text-xs text-slate-400 block mb-0.5">행사 기간</span>
+                            <span id="modalPeriod" class="font-semibold text-slate-800"></span>
+                        </div>
+                        <div>
+                            <span class="text-xs text-slate-400 block mb-0.5">사전예약 기간</span>
+                            <span id="modalReservePeriod" class="font-semibold text-rose-600"></span>
+                        </div>
+                        <div>
+                            <span class="text-xs text-slate-400 block mb-0.5">참가 비용</span>
+                            <span id="modalFee" class="font-semibold text-slate-800"></span>
+                        </div>
+                        <div>
+                            <span class="text-xs text-slate-400 block mb-0.5">주최/주관</span>
+                            <span id="modalOrganizer" class="font-semibold text-slate-800"></span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <h4 class="font-bold text-slate-900 text-base">행사 소개</h4>
+                        <p id="modalDescription" class="text-slate-600 leading-relaxed whitespace-pre-line"></p>
+                    </div>
+
+                    <!-- Reservation Link Action -->
+                    <div class="pt-2">
+                        <a id="modalReserveBtn" href="#" target="_blank" class="w-full py-3.5 bg-wonju-600 hover:bg-wonju-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-wonju-600/20 transition-all">
+                            <i data-lucide="ticket" class="w-5 h-5"></i>
+                            <span>사전예약 신청 사이트 이동</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- TAB 2: 대중교통 탭 (시내버스 노선, 정류장, 도보 동선) -->
+                <div id="tabContent-transit" class="hidden space-y-5">
+                    <div class="bg-blue-50/60 border border-blue-100 p-4 rounded-2xl space-y-2">
+                        <h4 class="font-bold text-blue-900 flex items-center gap-2 text-base">
+                            <i data-lucide="bus" class="w-5 h-5 text-blue-600"></i>
+                            주요 시내버스 안내
+                        </h4>
+                        <p class="text-xs text-blue-700">원주역, 원주시외버스터미널, 남부시장에서 이동 시 유용한 버스 노선입니다.</p>
+                    </div>
+
+                    <!-- Bus Routes Cards -->
+                    <div class="space-y-3" id="modalBusRoutes">
+                        <!-- JS Dynamic Insert -->
+                    </div>
+
+                    <!-- Walking Directions -->
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+                        <h4 class="font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="footprints" class="w-4 h-4 text-emerald-600"></i>
+                            정류장 -> 행사장 도보 동선
+                        </h4>
+                        <p id="modalWalkRoute" class="text-slate-600 text-xs sm:text-sm leading-relaxed"></p>
+                    </div>
+                </div>
+
+                <!-- TAB 3: 주차 팁 탭 (공영주차장, 대체 주차장, 요금 정보) -->
+                <div id="tabContent-parking" class="hidden space-y-5">
+                    <div class="bg-amber-50/70 border border-amber-200/60 p-4 rounded-2xl space-y-2">
+                        <h4 class="font-bold text-amber-900 flex items-center gap-2 text-base">
+                            <i data-lucide="square-parking" class="w-5 h-5 text-amber-600"></i>
+                            행사장 주변 주차 가이드
+                        </h4>
+                        <p class="text-xs text-amber-800">축제 기간 중에는 주차장이 매우 혼잡할 수 있으니 임시/대체 주차장을 적극 활용하세요.</p>
+                    </div>
+
+                    <!-- Recommended Main Parking -->
+                    <div class="border border-slate-200 rounded-2xl p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded">추천 1순위</span>
+                            <span id="modalParkingFee" class="text-xs font-bold text-slate-500"></span>
+                        </div>
+                        <h4 id="modalMainParkingName" class="font-bold text-slate-900 text-base"></h4>
+                        <p id="modalMainParkingAddr" class="text-xs text-slate-500 flex items-center gap-1">
+                            <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> <span></span>
+                        </p>
+                    </div>
+
+                    <!-- Congestion Alternative Parking -->
+                    <div class="border border-slate-200 bg-slate-50/50 rounded-2xl p-4 space-y-2">
+                        <span class="text-xs font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded">혼잡 시 대체 주차장</span>
+                        <h4 id="modalAltParkingName" class="font-bold text-slate-900 text-sm"></h4>
+                        <p id="modalAltParkingTip" class="text-xs text-slate-600 leading-relaxed"></p>
+                    </div>
+
+                    <div class="p-3 bg-slate-100 rounded-xl text-xs text-slate-500 flex items-start gap-2">
+                        <i data-lucide="circle-alert" class="w-4 h-4 text-slate-400 shrink-0 mt-0.5"></i>
+                        <span>주말이나 사전예약 행사 첫날은 주차 공간 부족으로 대중교통 이용을 적극 권장합니다.</span>
+                    </div>
+                </div>
+
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+                <button onclick="closeModal()" class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-colors">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API KEY MODAL (Tour API 연동 설정 모달) -->
+    <div id="apiKeyModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white max-w-md w-full rounded-2xl p-6 space-y-4 shadow-xl">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="key" class="w-5 h-5 text-amber-500"></i>
+                    Tour API 키 설정
+                </h3>
+                <button onclick="toggleApiKeyModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 leading-relaxed">
+                공공데이터포털(data.go.kr)에서 발급받은 <strong>한국관광공사_국문 관광정보 서비스 (TourAPI 4.0)</strong> 키를 입력하면 실제 실시간 원주 행사 데이터로 연동됩니다. (미입력 시 최신 2026/2027 원주시 행사 샘플 데이터 사용)
+            </p>
+            <div>
+                <label class="text-xs font-bold text-slate-700 block mb-1">SERVICE KEY (Decoding / Encoding)</label>
+                <input type="text" id="apiKeyInput" placeholder="공공데이터포털 일반 인증키 입력" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-wonju-500 focus:outline-none">
+            </div>
+            <div class="flex gap-2">
+                <button onclick="saveApiKey()" class="flex-1 py-2.5 bg-wonju-600 hover:bg-wonju-700 text-white rounded-xl font-bold text-xs">
+                    저장 및 연동 실행
+                </button>
+                <button onclick="clearApiKey()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-semibold text-xs">
+                    초기화
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center space-y-2 text-slate-500 text-xs">
+            <p class="font-semibold text-slate-700">모으다 원주 (Moada Wonju) - 원주시 축제 및 팝업 정보 플랫폼</p>
+            <p>본 서비스는 한국관광공사 TourAPI 4.0 및 원주시 공공 데이터 기반 정보를 제공합니다.</p>
+            <p class="text-slate-400">© 2026 Moada Wonju. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- JS LOGIC & TOUR API INTEGRATION FILE CODE -->
+    <script>
+        /**
+         * Tour API Integration Helper (api/tour.js Mock & Real Implementation)
+         */
+        const TourAPI = {
+            baseUrl: 'https://apis.data.go.kr/B551011/KorService1',
+            wonjuAreaCode: '32', // 강원특별자치도
+            wonjuSigunguCode: '13', // 원주시 Code in TourAPI
+
+            // Fetch active or upcoming events from TourAPI
+            async fetchWonjuEvents(apiKey) {
+                if (!apiKey) return null;
+                try {
+                    const today = new Date().toISOString().slice(0,10).replace(/-/g, '');
+                    const url = `${this.baseUrl}/searchFestival1?serviceKey=${encodeURIComponent(apiKey)}&numOfRows=20&pageNo=1&MobileOS=ETC&MobileApp=MoadaWonju&_type=json&listYN=Y&arrange=A&areaCode=${this.wonjuAreaCode}&sigunguCode=${this.wonjuSigunguCode}&eventStartDate=${today}`;
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (data?.response?.body?.items?.item) {
+                        return this.transformApiData(data.response.body.items.item);
+                    }
+                    return null;
+                } catch (error) {
+                    console.error('TourAPI Fetch Error:', error);
+                    return null;
+                }
+            },
+
+            // Format TourAPI response into application schema
+            transformApiData(items) {
+                const itemList = Array.isArray(items) ? items : [items];
+                return itemList.map((item, index) => {
+                    const startDate = item.eventstartdate ? `${item.eventstartdate.substring(0,4)}-${item.eventstartdate.substring(4,6)}-${item.eventstartdate.substring(6,8)}` : '2026-10-01';
+                    const endDate = item.eventenddate ? `${item.eventenddate.substring(0,4)}-${item.eventenddate.substring(4,6)}-${item.eventenddate.substring(6,8)}` : '2026-10-15';
+                    
+                    return {
+                        id: `tour-${item.contentid || index}`,
+                        title: item.title,
+                        category: 'FESTIVAL',
+                        categoryLabel: '🎉 축제/문화',
+                        startDate: startDate,
+                        endDate: endDate,
+                        reserveEndDate: startDate, // Default reserve cutoff to start date
+                        venue: item.addr1 || '강원특별자치도 원주시 일원',
+                        lat: parseFloat(item.mapy) || 37.3422,
+                        lng: parseFloat(item.mapx) || 127.9201,
+                        image: item.firstimage || 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=800&q=80',
+                        fee: '정보 문의',
+                        organizer: '원주시청 / 문화재단',
+                        description: `${item.title}에 여러분을 초대합니다. 자세한 안내사항은 공식 홈페이지 및 원주시 관광 안내를 참조해주시기 바랍니다.`,
+                        reserveUrl: 'https://www.wonju.go.kr',
+                        transit: {
+                            buses: [
+                                { num: '시내 30번, 34-1번', stop: '근처 시내 정류장', detail: '배차간격 약 15분' }
+                            ],
+                            walk: '정류장에서 도보 약 5분 거리에 행사장 입구가 위치해 있습니다.'
+                        },
+                        parking: {
+                            mainName: '행사장 내 공영주차장',
+                            address: item.addr1 || '원주시 내부 주차시설',
+                            fee: '최초 1시간 무료 / 추가 10분당 200원',
+                            altName: '원주여자중학교 임시주차장',
+                            altTip: '주말 14시 이후 주차공간 부족 시 임시 개방 주차장을 이용하세요.'
+                        }
+                    };
+                });
+            }
+        };
+
+        /**
+         * MOCK DATA (Current & Upcoming Events in Wonju for 2026/2027)
+         * Guarantees realistic display of data including D-Days, Bus routes & Parking tips
+         */
+        const MOCK_EVENTS = [
+            {
+                id: 'wonju-01',
+                title: '2026 원주 만두축제 (사전 체험단)',
+                category: 'FESTIVAL',
+                categoryLabel: '🎉 축제/문화',
+                startDate: '2026-10-24',
+                endDate: '2026-10-26',
+                reserveEndDate: '2026-11-28', // Upcoming reserve cutoff
+                venue: '원주 중앙시장 및 자유시장 일원',
+                lat: 37.3499,
+                lng: 127.9458,
+                image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&q=80',
+                fee: '무료 (일부 쿠킹클래스 10,000원)',
+                organizer: '원주시, 전통시장 연합회',
+                description: '원주 대표 명물 전통만두를 맛보고 체험하는 2026 원주 만두축제! 만두 만들기 사전 예약 체험단 참가 신청을 받습니다.',
+                reserveUrl: 'https://www.wonju.go.kr',
+                transit: {
+                    buses: [
+                        { num: '2번, 2-1번, 31번', stop: '중앙시장 정류장', detail: '원주역에서 탑승 시 약 12분 소요' },
+                        { num: '51번, 90번', stop: '자유시장 앞 정류장', detail: '터미널에서 탑승 시 약 15분 소요' }
+                    ],
+                    walk: '중앙시장 정류장 하차 후 다이소 골목 방향으로 도보 2분 (약 120m)'
+                },
+                parking: {
+                    mainName: '전통시장 주차타워 (공영)',
+                    address: '강원특별자치도 원주시 중앙시장길 6',
+                    fee: '30분 600원 / 10분당 300원 (전통시장 이용 시 할인)',
+                    altName: '원주천 둔치 1·2 주차장',
+                    altTip: '축제기간 주차타워 만차 시 원주천 둔치 주차장(도보 7분) 이용 추천'
+                }
+            },
+            {
+                id: 'wonju-02',
+                title: '원주 치악산 복숭아 & 한우 미식 팝업스토어',
+                category: 'POPUP',
+                categoryLabel: '🛍️ 팝업/플리마켓',
+                startDate: '2026-12-05',
+                endDate: '2026-12-10',
+                reserveEndDate: '2026-11-30',
+                venue: '혁신도시 건강보험공단 앞 야외광장',
+                lat: 37.3242,
+                lng: 127.9782,
+                image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80',
+                fee: '무료 입장',
+                organizer: '원주 농특산물 유통조합',
+                description: '원주 최고 특산품인 치악산 한우 디저트 및 복숭아 가공 시그니처 팝업! 시식 및 선물세트 사전예약 할인이 진행됩니다.',
+                reserveUrl: 'https://www.wonju.go.kr',
+                transit: {
+                    buses: [
+                        { num: '16번, 16-1번', stop: '국민건강보험공단 본사', detail: '혁신도시 순환 노선' }
+                    ],
+                    walk: '정류장 바로 앞 야외 잔디광장 부스 위치'
+                },
+                parking: {
+                    mainName: '혁신도시 공영 주차장 3구역',
+                    address: '강원특별자치도 원주시 입춘로 130',
+                    fee: '최초 2시간 무료, 이후 10분당 200원',
+                    altName: '건강보험공단 수변공원 주차장',
+                    altTip: '평일 낮시간대 공공기관 주차장 혼잡 시 수변공원 주차장 이용'
+                }
+            },
+            {
+                id: 'wonju-03',
+                title: '원주 다이내믹 댄싱카니발 2027 시즌패스',
+                category: 'FESTIVAL',
+                categoryLabel: '🎉 축제/문화',
+                startDate: '2027-09-10',
+                endDate: '2027-09-14',
+                reserveEndDate: '2026-12-15',
+                venue: '원주 따뚜공연장 및 댄싱공연장',
+                lat: 37.3365,
+                lng: 127.9472,
+                image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80',
+                fee: '얼리버드 VIP 좌석 15,000원',
+                organizer: '원주문화재단',
+                description: '대한민국 최고의 거리 퍼레이드 축제! 2027 시즌 메인무대 VIP 좌석 얼리버드 티켓 사전예약.',
+                reserveUrl: 'https://www.wonju.go.kr',
+                transit: {
+                    buses: [
+                        { num: '3번, 4번, 34번', stop: '원주 종합운동장', detail: '시외버스터미널에서 10분 거리' }
+                    ],
+                    walk: '종합운동장 정류장에서 따뚜공연장 내부 진입 (도보 3분)'
+                },
+                parking: {
+                    mainName: '원주종합운동장 통합주차장',
+                    address: '강원특별자치도 원주시 서원대로 311',
+                    fee: '행사 기간 무료 개방',
+                    altName: '치악체육관 후면 주차장',
+                    altTip: '메인 주차장 만차 시 체육관 후면 및 명륜동 공영주차장 분산 주차'
+                }
+            },
+            {
+                id: 'wonju-04',
+                title: '원주 옥수수·감자 미디어아트 라이트쇼',
+                category: 'EXHIBITION',
+                categoryLabel: '🎨 전시/공연',
+                startDate: '2026-12-18',
+                endDate: '2026-12-31',
+                reserveEndDate: '2026-12-05',
+                venue: '간현관광지 소금산 그랜드밸리 야간경관',
+                lat: 37.3670,
+                lng: 127.8285,
+                image: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=800&q=80',
+                fee: '야간입장권 8,000원',
+                organizer: '원주시 시설관리공단',
+                description: '소금산 출렁다리와 절벽을 배경으로 펼쳐지는 2026 미디어파사드 빛 축제! 야간 관람 인원 제한으로 사전예약 필수입니다.',
+                reserveUrl: 'https://www.wonju.go.kr',
+                transit: {
+                    buses: [
+                        { num: '52번, 57번', stop: '간현관광지 입구', detail: '원주역에서 약 25분 소요' }
+                    ],
+                    walk: '버스정류장에서 매표소 및 출렁다리 산책로까지 도보 8분'
+                },
+                parking: {
+                    mainName: '간현관광지 제1·2 공영주차장',
+                    address: '강원특별자치도 원주시 지정면 소금산길 26',
+                    fee: '대형 4,000원 / 소형 2,000원 (원주사랑상품권으로 환급)',
+                    altName: '지정면 레일바이크 주차장',
+                    altTip: '주말 야간 시간대 주차장 진입로 혼잡 시 1km 전 임시 셔틀 주차장 활용'
+                }
+            },
+            {
+                id: 'wonju-05',
+                title: '원주 청년 창업 브랜드 윈터 팝업마켓',
+                category: 'POPUP',
+                categoryLabel: '🛍️ 팝업/플리마켓',
+                startDate: '2026-12-20',
+                endDate: '2026-12-25',
+                reserveEndDate: '2026-12-12',
+                venue: '원주 미로예술시장 중앙광장',
+                lat: 37.3490,
+                lng: 127.9465,
+                image: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=800&q=80',
+                fee: '무료 (체험부스 별도)',
+                organizer: '원주시 청년마을사업단',
+                description: '원주 청년 공예가와 디자이너들의 핸드메이드 굿즈 & 크리스마스 소품 팝업 마켓.',
+                reserveUrl: 'https://www.wonju.go.kr',
+                transit: {
+                    buses: [
+                        { num: '31번, 34번, 51번', stop: '강원감영/중앙시장', detail: '원주 주요 시내버스 다수 경유' }
+                    ],
+                    walk: '미로예술시장 2층 중앙 계단 이용'
+                },
+                parking: {
+                    mainName: '자유시장 지하 공영주차장',
+                    address: '강원특별자치도 원주시 중앙시장길 11',
+                    fee: '10분당 300원',
+                    altName: '강원감영 옆 공영주차장',
+                    altTip: '감영 산책 겸 인근 노상 주차면 확인 권장'
+                }
+            }
+        ];
+
+        // Global State
+        let allEvents = [];
+        let filteredEvents = [];
+        let currentCategory = 'ALL';
+        let searchQuery = '';
+        let map = null;
+        let mapMarkers = [];
+        let activeModalEvent = null;
+        let isMapVisible = false;
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', async () => {
+            lucide.createIcons();
+            
+            // Check stored API key
+            const storedKey = localStorage.getItem('TOUR_API_KEY') || '';
+            if (storedKey) {
+                document.getElementById('apiKeyInput').value = storedKey;
+                const apiData = await TourAPI.fetchWonjuEvents(storedKey);
+                if (apiData && apiData.length > 0) {
+                    allEvents = apiData;
+                } else {
+                    allEvents = [...MOCK_EVENTS];
+                }
+            } else {
+                allEvents = [...MOCK_EVENTS];
+            }
+
+            applyFiltersAndRender();
+            initLeafletMap();
+        });
+
+        // Compute D-Day String
+        function calculateDDay(targetDateStr) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const target = new Date(targetDateStr);
+            target.setHours(0, 0, 0, 0);
+
+            const diffTime = target - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 0) return `D-${diffDays}`;
+            if (diffDays === 0) return `D-DAY`;
+            return `마감`;
+        }
+
+        // Render D-Day Top Highlights Banner
+        function renderDDayHighlights() {
+            const container = document.getElementById('ddayContainer');
+            container.innerHTML = '';
+
+            // Filter upcoming/active reservations sorted by closest deadline
+            const ddayEvents = [...allEvents]
+                .filter(ev => calculateDDay(ev.reserveEndDate) !== '마감')
+                .sort((a, b) => new Date(a.reserveEndDate) - new Date(b.reserveEndDate))
+                .slice(0, 3);
+
+            if (ddayEvents.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full bg-white p-6 rounded-2xl border border-slate-200 text-center text-slate-500 text-sm">
+                        현재 사전예약 접수 중인 임박 행사가 없습니다. 아래 목록을 확인해주세요.
+                    </div>
+                `;
+                return;
+            }
+
+            ddayEvents.forEach(ev => {
+                const ddayText = calculateDDay(ev.reserveEndDate);
+                const isUrgent = ddayText === 'D-DAY' || (ddayText.startsWith('D-') && parseInt(ddayText.replace('D-', '')) <= 7);
+
+                const cardHtml = `
+                    <div onclick="openModal('${ev.id}')" class="group cursor-pointer bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all relative overflow-hidden border border-slate-700/50 flex flex-col justify-between">
+                        <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-wonju-500/20 rounded-full blur-2xl group-hover:bg-wonju-500/30 transition-all"></div>
+                        
+                        <div class="space-y-3 relative z-10">
+                            <div class="flex items-center justify-between">
+                                <span class="px-2.5 py-1 rounded-lg text-xs font-bold ${isUrgent ? 'bg-rose-500 text-white animate-pulse' : 'bg-wonju-600 text-white'} shadow-sm">
+                                    사전예약 ${ddayText}
+                                </span>
+                                <span class="text-xs text-slate-300 font-medium">${ev.categoryLabel}</span>
+                            </div>
+
+                            <div>
+                                <h3 class="font-bold text-lg text-white group-hover:text-wonju-400 transition-colors line-clamp-1">${ev.title}</h3>
+                                <p class="text-xs text-slate-300 mt-1 flex items-center gap-1 line-clamp-1">
+                                    <i data-lucide="map-pin" class="w-3.5 h-3.5 text-wonju-400"></i>
+                                    ${ev.venue}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-300 relative z-10">
+                            <span>예약 마감일: <strong class="text-white">${ev.reserveEndDate}</strong></span>
+                            <span class="text-wonju-400 font-semibold group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
+                                자세히보기 <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                            </span>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            });
+            lucide.createIcons();
+        }
+
+        // Render Cards Grid
+        function renderEventGrid() {
+            const grid = document.getElementById('eventListGrid');
+            const emptyState = document.getElementById('emptyState');
+            const eventCount = document.getElementById('eventCount');
+
+            grid.innerHTML = '';
+            eventCount.textContent = filteredEvents.length;
+
+            if (filteredEvents.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            filteredEvents.forEach(ev => {
+                const ddayText = calculateDDay(ev.reserveEndDate);
+
+                const card = `
+                    <div onclick="openModal('${ev.id}')" class="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-sm hover:shadow-md hover:border-wonju-500/40 transition-all cursor-pointer flex flex-col group">
+                        <div class="relative h-44 overflow-hidden bg-slate-100">
+                            <img src="${ev.image}" alt="${ev.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.src='https://placehold.co/600x400/e2e8f0/475569?text=Moada+Wonju'">
+                            <div class="absolute top-3 left-3 flex gap-1.5 flex-wrap">
+                                <span class="px-2.5 py-1 bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-bold rounded-lg">${ev.categoryLabel}</span>
+                            </div>
+                            <div class="absolute bottom-3 right-3">
+                                <span class="px-2.5 py-1 ${ddayText === '마감' ? 'bg-slate-600' : 'bg-rose-600'} text-white text-xs font-bold rounded-lg shadow-sm">
+                                    ${ddayText === '마감' ? '예약마감' : '예약 ' + ddayText}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
+                            <div class="space-y-1.5">
+                                <h3 class="font-bold text-slate-900 group-hover:text-wonju-600 transition-colors line-clamp-1">${ev.title}</h3>
+                                <p class="text-xs text-slate-500 flex items-center gap-1 line-clamp-1">
+                                    <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i>
+                                    ${ev.startDate} ~ ${ev.endDate}
+                                </p>
+                                <p class="text-xs text-slate-500 flex items-center gap-1 line-clamp-1">
+                                    <i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400"></i>
+                                    ${ev.venue}
+                                </p>
+                            </div>
+
+                            <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                                <span class="text-slate-400 font-medium">대중교통 / 주차 팁 포함</span>
+                                <span class="text-wonju-600 font-bold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                                    상세보기 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.insertAdjacentHTML('beforeend', card);
+            });
+            lucide.createIcons();
+        }
+
+        // Initialize Leaflet Map
+        function initLeafletMap() {
+            // Center of Wonju City Hall area
+            map = L.map('map').setView([37.3422, 127.9201], 12);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+
+            updateMapMarkers();
+        }
+
+        // Update Map Markers according to filtered items
+        function updateMapMarkers() {
+            if (!map) return;
+
+            // Clear old markers
+            mapMarkers.forEach(m => map.removeLayer(m));
+            mapMarkers = [];
+
+            const bounds = [];
+
+            filteredEvents.forEach(ev => {
+                if (ev.lat && ev.lng) {
+                    const customIcon = L.divIcon({
+                        className: 'custom-pin',
+                        html: `<div class="w-8 h-8 rounded-full bg-wonju-600 border-2 border-white text-white flex items-center justify-center shadow-lg transform transition-transform hover:scale-125 cursor-pointer font-bold text-xs">
+                                    <i data-lucide="map-pin" class="w-4 h-4"></i>
+                               </div>`,
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 32]
+                    });
+
+                    const marker = L.marker([ev.lat, ev.lng], { icon: customIcon }).addTo(map);
+                    
+                    marker.bindPopup(`
+                        <div class="p-1 max-w-[200px] space-y-1">
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 bg-wonju-100 text-wonju-800 rounded">${ev.categoryLabel}</span>
+                            <h4 class="font-bold text-xs text-slate-900 mt-1">${ev.title}</h4>
+                            <p class="text-[11px] text-slate-500">${ev.venue}</p>
+                            <button onclick="openModal('${ev.id}')" class="w-full mt-2 py-1 bg-wonju-600 text-white rounded text-[11px] font-bold">상세/교통주차 보기</button>
+                        </div>
+                    `);
+
+                    mapMarkers.push(marker);
+                    bounds.push([ev.lat, ev.lng]);
+                }
+            });
+
+            if (bounds.length > 0) {
+                map.fitBounds(bounds, { padding: [30, 30] });
+            }
+        }
+
+        // Filters Handling
+        function setCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                btn.classList.remove('bg-wonju-600', 'text-white', 'border-wonju-600', 'shadow-sm');
+                btn.classList.add('bg-white', 'text-slate-600', 'border-slate-200');
+            });
+
+            event.target.classList.remove('bg-white', 'text-slate-600', 'border-slate-200');
+            event.target.classList.add('bg-wonju-600', 'text-white', 'border-wonju-600', 'shadow-sm');
+
+            applyFiltersAndRender();
+        }
+
+        function handleSearch() {
+            searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+            applyFiltersAndRender();
+        }
+
+        function handleSort() {
+            const sortType = document.getElementById('sortSelect').value;
+            if (sortType === 'dday') {
+                filteredEvents.sort((a, b) => new Date(a.reserveEndDate) - new Date(b.reserveEndDate));
+            } else if (sortType === 'start') {
+                filteredEvents.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+            } else if (sortType === 'name') {
+                filteredEvents.sort((a, b) => a.title.localeCompare(b.title));
+            }
+            renderEventGrid();
+        }
+
+        function applyFiltersAndRender() {
+            filteredEvents = allEvents.filter(ev => {
+                const matchCategory = currentCategory === 'ALL' || ev.category === currentCategory;
+                const matchSearch = ev.title.toLowerCase().includes(searchQuery) || ev.venue.toLowerCase().includes(searchQuery);
+                return matchCategory && matchSearch;
+            });
+
+            renderDDayHighlights();
+            renderEventGrid();
+            updateMapMarkers();
+        }
+
+        function resetFilters() {
+            currentCategory = 'ALL';
+            searchQuery = '';
+            document.getElementById('searchInput').value = '';
+            setCategory('ALL');
+        }
+
+        // Mobile / Desktop Map Toggle
+        function toggleMapView() {
+            const mapWrapper = document.getElementById('mapWrapper');
+            const mapToggleText = document.getElementById('mapToggleText');
+
+            if (mapWrapper.classList.contains('hidden')) {
+                mapWrapper.classList.remove('hidden');
+                mapToggleText.textContent = '지도 접기';
+                setTimeout(() => map.invalidateSize(), 200);
+            } else {
+                mapWrapper.classList.add('hidden');
+                mapToggleText.textContent = '지도 펼치기';
+            }
+        }
+
+        // Modal Handling
+        function openModal(eventId) {
+            const ev = allEvents.find(e => e.id === eventId);
+            if (!ev) return;
+            activeModalEvent = ev;
+
+            document.getElementById('modalImage').src = ev.image;
+            document.getElementById('modalTitle').textContent = ev.title;
+            document.getElementById('modalCategory').textContent = ev.categoryLabel;
+            document.getElementById('modalDDayBadge').textContent = `사전예약 ${calculateDDay(ev.reserveEndDate)}`;
+            document.getElementById('modalVenue').querySelector('span').textContent = ev.venue;
+            
+            document.getElementById('modalPeriod').textContent = `${ev.startDate} ~ ${ev.endDate}`;
+            document.getElementById('modalReservePeriod').textContent = `~ ${ev.reserveEndDate} 까지`;
+            document.getElementById('modalFee').textContent = ev.fee;
+            document.getElementById('modalOrganizer').textContent = ev.organizer;
+            document.getElementById('modalDescription').textContent = ev.description;
+            document.getElementById('modalReserveBtn').href = ev.reserveUrl;
+
+            // Render Buses
+            const busContainer = document.getElementById('modalBusRoutes');
+            busContainer.innerHTML = '';
+            ev.transit.buses.forEach(b => {
+                busContainer.insertAdjacentHTML('beforeend', `
+                    <div class="border border-slate-200 rounded-xl p-3 bg-white flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                        <div class="flex items-center gap-2.5">
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 font-bold rounded text-xs">${b.num}</span>
+                            <span class="font-bold text-slate-800 text-xs sm:text-sm">${b.stop}</span>
+                        </div>
+                        <span class="text-xs text-slate-500">${b.detail}</span>
+                    </div>
+                `);
+            });
+
+            document.getElementById('modalWalkRoute').textContent = ev.transit.walk;
+
+            // Render Parking
+            document.getElementById('modalMainParkingName').textContent = ev.parking.mainName;
+            document.getElementById('modalMainParkingAddr').querySelector('span').textContent = ev.parking.address;
+            document.getElementById('modalParkingFee').textContent = ev.parking.fee;
+            document.getElementById('modalAltParkingName').textContent = ev.parking.altName;
+            document.getElementById('modalAltParkingTip').textContent = ev.parking.altTip;
+
+            // Default tab
+            switchTab('info');
+
+            document.getElementById('detailModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            lucide.createIcons();
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function switchTab(tabName) {
+            ['info', 'transit', 'parking'].forEach(t => {
+                const btn = document.getElementById(`tabBtn-${t}`);
+                const content = document.getElementById(`tabContent-${t}`);
+                
+                if (t === tabName) {
+                    btn.classList.add('border-wonju-600', 'text-wonju-600');
+                    btn.classList.remove('border-transparent');
+                    content.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('border-wonju-600', 'text-wonju-600');
+                    btn.classList.add('border-transparent');
+                    content.classList.add('hidden');
+                }
+            });
+        }
+
+        // Api Key Modal
+        function toggleApiKeyModal() {
+            document.getElementById('apiKeyModal').classList.toggle('hidden');
+        }
+
+        async function saveApiKey() {
+            const key = document.getElementById('apiKeyInput').value.trim();
+            if (key) {
+                localStorage.setItem('TOUR_API_KEY', key);
+                const apiData = await TourAPI.fetchWonjuEvents(key);
+                if (apiData && apiData.length > 0) {
+                    allEvents = apiData;
+                    applyFiltersAndRender();
+                    alert('Tour API 연동 성공! 실시간 원주시 축제 데이터를 불러왔습니다.');
+                } else {
+                    alert('유효한 API 키가 아니거나 등록된 데이터가 없어 샘플 데이터로 유지됩니다.');
+                }
+            }
+            toggleApiKeyModal();
+        }
+
+        function clearApiKey() {
+            localStorage.removeItem('TOUR_API_KEY');
+            document.getElementById('apiKeyInput').value = '';
+            allEvents = [...MOCK_EVENTS];
+            applyFiltersAndRender();
+            alert('API 키가 초기화되었습니다. 기본 원주 행사 정보가 제공됩니다.');
+            toggleApiKeyModal();
+        }
+    </script>
+</body>
+</html>
